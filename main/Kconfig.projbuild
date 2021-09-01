@@ -1,0 +1,15 @@
+menu "PMSX003 config"
+
+config TX_GPIO
+    int "TX GPIO"
+    default 4
+    help
+        Connect RX pin of PMS sensor to this GPIO
+
+config RX_GPIO
+    int "RX GPIO"
+    default 5
+    help
+        Connect TX pin of PMS sensor to this GPIO
+    			
+endmenu
