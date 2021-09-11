@@ -55,8 +55,7 @@ esp_err_t idf_pmsx5003_init(pmsx003_config_t *config) {
     if (result != ESP_OK)
         return ESP_FAIL;
 
-    TaskHandle_t handle = xReadTaskHandles[config->uart_port];
-    xTaskCreate(pmsx_data_read_task, "data read task", 2048, config, 5, &handle);
+    xTaskCreate(pmsx_data_read_task, "data read task", 2048, config, 5, &(xReadTaskHandles[config->uart_port]));
 
     ESP_LOGI(TAG, "pmsx sensor initialized successfully");
 
