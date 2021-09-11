@@ -12,7 +12,7 @@ static const int pmsx_baud_rate = 9600;
 
 static const int uart_buffer_size = 1024 * 2;
 
-static TaskHandle_t xReadTaskHandle = NULL;
+static TaskHandle_t xReadTaskHandles[UART_NUM_MAX];
 
 /*---------------- STATIC FUNCTIONS DEFs ----------------------------------*/
 static void pmsx_data_read_task();
@@ -28,7 +28,7 @@ static pm_data_t decode_pm_data(uint8_t *data, bool indoor);
 
 esp_err_t idf_pmsx5003_init(pmsx003_config_t *config) {
 
-    if (xReadTaskHandle != NULL) {
+    if (xReadTaskHandles[config->uart_port] != NULL) {
         return ESP_OK;
     }
 
@@ -55,7 +55,8 @@ esp_err_t idf_pmsx5003_init(pmsx003_config_t *config) {
     if (result != ESP_OK)
         return ESP_FAIL;
 
-    xTaskCreate(pmsx_data_read_task, "data read task", 2048, config, 5, &xReadTaskHandle);
+    TaskHandle_t handle = xReadTaskHandles[config->uart_port];
+    xTaskCreate(pmsx_data_read_task, "data read task", 2048, config, 5, &handle);
 
     ESP_LOGI(TAG, "pmsx sensor initialized successfully");
 
@@ -142,10 +143,10 @@ void idf_pmsx5003_destroy(pmsx003_config_t* config) {
 
     ESP_LOGI(TAG, "stop pmsx sensor");
 
-    if (xReadTaskHandle != NULL) {
-        vTaskDelete(xReadTaskHandle);
+    if (xReadTaskHandles[config->uart_port] != NULL) {
+        vTaskDelete(xReadTaskHandles[config->uart_port]);
     }
     
-    xReadTaskHandle = NULL;
+    xReadTaskHandles[config->uart_port] = NULL;
     uart_driver_delete(config->uart_port);
 }
