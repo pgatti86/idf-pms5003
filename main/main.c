@@ -11,12 +11,32 @@
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
+#include "driver/uart.h"
+#include "esp_log.h"
 
+#include "idf-pmsx003.h"
 
-void app_main(void)
-{
-    printf("Hello world!\n");
+static const char* TAG = "MAIN";
 
+static void pms_callback(pm_data_t *sensor_data) {
+    ESP_LOGI(TAG, "pm10: %d", sensor_data->pm10);
+    ESP_LOGI(TAG, "pm2.5: %d", sensor_data->pm2_5);
+    ESP_LOGI(TAG, "pm1.0: %d", sensor_data->pm1_0);
+}
+
+pmsx003_config_t pms_conf = {
+    .sensor_id = 1,
+    .uart_port = UART_NUM_2,
+	.indoor = false,
+    .enabled = true,
+	.callback = &pms_callback,
+	.set_pin = 0, //TODO define
+	.uart_tx_pin = CONFIG_TX_GPIO,
+	.uart_rx_pin = CONFIG_RX_GPIO,
+};
+
+void app_main(void) {
+    
     /* Print chip information */
     esp_chip_info_t chip_info;
     esp_chip_info(&chip_info);
@@ -30,11 +50,5 @@ void app_main(void)
     printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
             (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
-    for (int i = 10; i >= 0; i--) {
-        printf("Restarting in %d seconds...\n", i);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-    printf("Restarting now.\n");
-    fflush(stdout);
-    esp_restart();
+    idf_pmsx5003_init(&pms_conf);
 }
