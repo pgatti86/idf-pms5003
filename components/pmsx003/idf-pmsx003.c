@@ -64,7 +64,7 @@ esp_err_t idf_pmsx5003_init(pmsx003_config_t *config) {
 
 static void pmsx_data_read_task(pmsx003_config_t* config) {
     uint8_t data[PMS_FRAME_LEN];
-    while(1) {
+    while (1) {
         if (config->enabled) {
             pms_uart_read(config, data);
         }
@@ -77,8 +77,14 @@ static void pmsx_data_read_task(pmsx003_config_t* config) {
 
 esp_err_t pms_uart_read(pmsx003_config_t *config, uint8_t *data) {
 	
-    int data_len = uart_read_bytes(config->uart_port, data, PMS_FRAME_LEN, 100 / portTICK_RATE_MS);
-	    
+    size_t available_data;
+    uart_get_buffered_data_len(config->uart_port, &available_data);
+    if (available_data < PMS_FRAME_LEN) {
+        ESP_LOGW(TAG, "not enought data available");
+        return ESP_FAIL;
+    }
+
+    int data_len = uart_read_bytes(config->uart_port, data, PMS_FRAME_LEN, 100 / portTICK_RATE_MS);    
     if (is_pmsx_frame_valid(data, data_len)) {
         pm_data_t pm = decode_pm_data(data, config->indoor);
         pm.sensor_id = config->sensor_id;
