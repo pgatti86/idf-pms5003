@@ -3,6 +3,8 @@
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "freertos/task.h"
+#include "esp_timer.h"
 
 #define PMS_FRAME_LEN 32
 
@@ -12,24 +14,30 @@ static const int pmsx_baud_rate = 9600;
 
 static const int uart_buffer_size = 1024 * 2;
 
-static TaskHandle_t xReadTaskHandles[UART_NUM_MAX];
+static TaskHandle_t xReadTaskHandles[UART_NUM_MAX] = { NULL };
+
+static esp_timer_handle_t xReadTimerHandles[UART_NUM_MAX] = { NULL };
 
 /*---------------- STATIC FUNCTIONS DEFs ----------------------------------*/
+static esp_err_t pmsx_schedule_periodic_read(pmsx003_config_t *config);
+
 static void pmsx_data_read_task();
 
 static esp_err_t pms_uart_read(pmsx003_config_t *config, uint8_t *data);
 
-static int calculate_frame_checksum(uint8_t *data);
-
 static bool is_pmsx_frame_valid(uint8_t *data, int data_len);
 
+static int calculate_frame_checksum(uint8_t *data);
+
 static pm_data_t decode_pm_data(uint8_t *data, bool indoor);
+
+static void pmsx_periodic_timer_callback(void* arg);
 /*--------------------------------------------------------------------------*/
 
 esp_err_t idf_pmsx5003_init(pmsx003_config_t *config) {
 
     if (xReadTaskHandles[config->uart_port] != NULL) {
-        return ESP_OK;
+        return ESP_FAIL;
     }
 
     ESP_LOGI(TAG, "init pmsx sensor");
@@ -55,27 +63,71 @@ esp_err_t idf_pmsx5003_init(pmsx003_config_t *config) {
     if (result != ESP_OK)
         return ESP_FAIL;
 
-    xTaskCreate(pmsx_data_read_task, "data read task", 2048, config, 5, &(xReadTaskHandles[config->uart_port]));
+    if (config->periodic) {
 
+        xTaskCreate(pmsx_data_read_task, "data read task", 2048, config, 5, &(xReadTaskHandles[config->uart_port]));
+         
+        result = pmsx_schedule_periodic_read(config);
+        if (result != ESP_OK) {
+            idf_pmsx5003_destroy(config);
+            return ESP_FAIL; 
+        }
+    } else {
+        xTaskCreate(pmsx_data_read_task, "data read task", 2048, config, 5, NULL);
+    }
+    
     ESP_LOGI(TAG, "pmsx sensor initialized successfully");
 
     return ESP_OK;
 }
 
+static esp_err_t pmsx_schedule_periodic_read(pmsx003_config_t *config) {
+
+    const esp_timer_create_args_t pmsx_periodic_timer_args = {
+        .callback = &pmsx_periodic_timer_callback,
+        .arg = &config->uart_port,
+        .name = "periodic pmsx timer task"
+    };
+
+    esp_err_t ret = esp_timer_create(&pmsx_periodic_timer_args, &(xReadTimerHandles[config->uart_port]));
+    
+    if (ret == ESP_OK) {
+        int seconds = config->periodic_sec_interval > 0 ? config->periodic_sec_interval : 60;
+        uint64_t period = 1000000 * seconds;
+        ret = esp_timer_start_periodic(xReadTimerHandles[config->uart_port], period);
+    }
+
+    return ret;
+}
+
 static void pmsx_data_read_task(pmsx003_config_t* config) {
+    
     uint8_t data[PMS_FRAME_LEN];
-    while (1) {
+
+    bool is_periodic = config->periodic;
+
+    do {
+        
+        //TODO sleep for sensor wake-up
+        uart_flush(config->uart_port);
+        vTaskDelay(1000 / portTICK_RATE_MS);
+        
         if (config->enabled) {
             pms_uart_read(config, data);
         }
         
-        vTaskDelay(1000 / portTICK_RATE_MS);
-    }
-    
+        if (is_periodic) {
+            vTaskSuspend(NULL);
+        } else {
+            idf_pmsx5003_destroy(config);
+        }
+        
+    } while (is_periodic);
+   
     vTaskDelete(NULL);
 }
 
-esp_err_t pms_uart_read(pmsx003_config_t *config, uint8_t *data) {
+static esp_err_t pms_uart_read(pmsx003_config_t *config, uint8_t *data) {
 	
     size_t available_data;
     uart_get_buffered_data_len(config->uart_port, &available_data);
@@ -138,6 +190,16 @@ static pm_data_t decode_pm_data(uint8_t* data, bool indoor) {
 	return pm;
 }
 
+static void pmsx_periodic_timer_callback(void* arg) {
+    
+    uint8_t task_handle_index = *((uint8_t*) arg);
+    
+    TaskHandle_t task_handle = xReadTaskHandles[task_handle_index];
+    if (task_handle != NULL) {
+        vTaskResume(task_handle);
+    }
+}
+
 void idf_pmsx5003_destroy(pmsx003_config_t* config) {
 
     ESP_LOGI(TAG, "stop pmsx sensor");
@@ -146,6 +208,13 @@ void idf_pmsx5003_destroy(pmsx003_config_t* config) {
         vTaskDelete(xReadTaskHandles[config->uart_port]);
     }
     
+    if (xReadTimerHandles[config->uart_port] != NULL) {
+        esp_timer_stop(xReadTimerHandles[config->uart_port]);
+        esp_timer_delete(xReadTimerHandles[config->uart_port]);
+    }
+    
     xReadTaskHandles[config->uart_port] = NULL;
+    xReadTimerHandles[config->uart_port] = NULL;
+    
     uart_driver_delete(config->uart_port);
 }

@@ -18,6 +18,8 @@ typedef struct {
     uint8_t uart_port;
 	bool indoor;
     bool enabled;
+	bool periodic;
+	int periodic_sec_interval;
 	pm_data_callback_f callback;
 	uint8_t set_pin;
 	uint8_t uart_tx_pin;
@@ -26,6 +28,6 @@ typedef struct {
 
 esp_err_t idf_pmsx5003_init(pmsx003_config_t *config);
 
-void idf_pmsx5003_destroy(pmsx003_config_t* config);
+void idf_pmsx5003_destroy(pmsx003_config_t *config);
 
 #endif
