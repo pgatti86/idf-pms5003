@@ -11,5 +11,11 @@ config RX_GPIO
     default 5
     help
         Connect TX pin of PMS sensor to this GPIO
+
+config SET_GPIO
+    int "SET GPIO"
+    default 18
+    help
+        Connect SET pin of PMS sensor to this GPIO        
     			
 endmenu

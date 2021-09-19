@@ -36,9 +36,9 @@ pmsx003_config_t pms_conf = {
 	.indoor = false,
     .enabled = true,
     .periodic = true,
-    .periodic_sec_interval = 10, // every second
+    .periodic_sec_interval = 300, // every five minutes
 	.callback = &pms_callback,
-	.set_pin = 0, //TODO define
+	.set_pin = CONFIG_SET_GPIO,
 	.uart_tx_pin = CONFIG_TX_GPIO,
 	.uart_rx_pin = CONFIG_RX_GPIO,
 };

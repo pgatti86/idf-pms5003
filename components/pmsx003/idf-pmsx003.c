@@ -8,6 +8,16 @@
 
 #define PMS_FRAME_LEN 32
 
+#define PMS_SET_PIN_VALUE_OFF 0
+
+#define PMS_SET_PIN_VALUE_ON 1
+
+#define PMS_MIN_INTERVAL 35
+
+#define PMS_WARMUP_DELAY  30000
+
+#define PMS_WAIT_DATA_DELAY  1000
+
 static const char* TAG = "pmsx003";
 
 static const int pmsx_baud_rate = 9600;
@@ -19,6 +29,8 @@ static TaskHandle_t xReadTaskHandles[UART_NUM_MAX] = { NULL };
 static esp_timer_handle_t xReadTimerHandles[UART_NUM_MAX] = { NULL };
 
 /*---------------- STATIC FUNCTIONS DEFs ----------------------------------*/
+static esp_err_t pmsx_configure_gpio(pmsx003_config_t *config);
+
 static esp_err_t pmsx_schedule_periodic_read(pmsx003_config_t *config);
 
 static void pmsx_data_read_task();
@@ -51,7 +63,11 @@ esp_err_t idf_pmsx5003_init(pmsx003_config_t *config) {
         .rx_flow_ctrl_thresh = 122,
     };
 
-    esp_err_t result = uart_param_config(config->uart_port, &uart_config);
+    esp_err_t result = pmsx_configure_gpio(config);
+    if (result != ESP_OK)
+        return ESP_FAIL;
+
+    result = uart_param_config(config->uart_port, &uart_config);
     if (result != ESP_OK)
         return ESP_FAIL;
     
@@ -81,6 +97,14 @@ esp_err_t idf_pmsx5003_init(pmsx003_config_t *config) {
     return ESP_OK;
 }
 
+static esp_err_t pmsx_configure_gpio(pmsx003_config_t *config) {
+    gpio_pad_select_gpio(config->set_pin);
+    esp_err_t ret = gpio_set_direction(config->set_pin, GPIO_MODE_OUTPUT);
+    ret += gpio_set_pull_mode(config->set_pin, GPIO_PULLDOWN_ONLY);
+    ret += gpio_set_level(config->set_pin, PMS_SET_PIN_VALUE_OFF);
+    return ret;
+}
+
 static esp_err_t pmsx_schedule_periodic_read(pmsx003_config_t *config) {
 
     const esp_timer_create_args_t pmsx_periodic_timer_args = {
@@ -92,7 +116,7 @@ static esp_err_t pmsx_schedule_periodic_read(pmsx003_config_t *config) {
     esp_err_t ret = esp_timer_create(&pmsx_periodic_timer_args, &(xReadTimerHandles[config->uart_port]));
     
     if (ret == ESP_OK) {
-        int seconds = config->periodic_sec_interval > 0 ? config->periodic_sec_interval : 60;
+        int seconds = config->periodic_sec_interval > PMS_MIN_INTERVAL ? config->periodic_sec_interval : PMS_MIN_INTERVAL;
         uint64_t period = 1000000 * seconds;
         ret = esp_timer_start_periodic(xReadTimerHandles[config->uart_port], period);
     }
@@ -107,15 +131,17 @@ static void pmsx_data_read_task(pmsx003_config_t* config) {
     bool is_periodic = config->periodic;
 
     do {
-        
-        //TODO sleep for sensor wake-up
+        gpio_set_level(config->set_pin, PMS_SET_PIN_VALUE_ON);
+        vTaskDelay(PMS_WARMUP_DELAY / portTICK_RATE_MS);
         uart_flush(config->uart_port);
-        vTaskDelay(1000 / portTICK_RATE_MS);
+        vTaskDelay(PMS_WAIT_DATA_DELAY / portTICK_RATE_MS);
         
         if (config->enabled) {
             pms_uart_read(config, data);
         }
         
+        gpio_set_level(config->set_pin, PMS_SET_PIN_VALUE_OFF);
+
         if (is_periodic) {
             vTaskSuspend(NULL);
         } else {
