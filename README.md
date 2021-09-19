@@ -27,14 +27,14 @@ static void pms_callback(pm_data_t *sensor_data) {
 pmsx003_config_t pms_conf = {
     .sensor_id = 1,
     .uart_port = UART_NUM_2,
-	.indoor = false,
+    .indoor = false,
     .enabled = true,
     .periodic = true,
     .periodic_sec_interval = 300, // every five minutes
-	.callback = &pms_callback,
-	.set_pin = CONFIG_SET_GPIO,
-	.uart_tx_pin = CONFIG_TX_GPIO,
-	.uart_rx_pin = CONFIG_RX_GPIO,
+    .callback = &pms_callback,
+    .set_pin = CONFIG_SET_GPIO,
+    .uart_tx_pin = CONFIG_TX_GPIO,
+    .uart_rx_pin = CONFIG_RX_GPIO,
 };
 
 void app_main(void) {
