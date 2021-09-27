@@ -22,6 +22,7 @@ typedef struct {
 	int periodic_sec_interval;
 	pm_data_callback_f callback;
 	uint8_t set_pin;
+	uint8_t reset_pin;
 	uint8_t uart_tx_pin;
 	uint8_t uart_rx_pin;
 } pmsx003_config_t;

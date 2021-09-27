@@ -8,15 +8,17 @@
 
 #define PMS_FRAME_LEN 32
 
-#define PMS_SET_PIN_VALUE_OFF 0
+#define PMS_PIN_VALUE_LOW 0
 
-#define PMS_SET_PIN_VALUE_ON 1
+#define PMS_PIN_VALUE_HIGH 1
 
 #define PMS_MIN_INTERVAL 35
 
 #define PMS_WARMUP_DELAY  30000
 
 #define PMS_WAIT_DATA_DELAY  1000
+
+#define PMS_RESET_SENSOR_DELAY  1000
 
 static const char* TAG = "pmsx003";
 
@@ -98,10 +100,17 @@ esp_err_t idf_pmsx5003_init(pmsx003_config_t *config) {
 }
 
 static esp_err_t pmsx_configure_gpio(pmsx003_config_t *config) {
+    
     gpio_pad_select_gpio(config->set_pin);
     esp_err_t ret = gpio_set_direction(config->set_pin, GPIO_MODE_OUTPUT);
     ret += gpio_set_pull_mode(config->set_pin, GPIO_PULLDOWN_ONLY);
-    ret += gpio_set_level(config->set_pin, PMS_SET_PIN_VALUE_OFF);
+    ret += gpio_set_level(config->set_pin, PMS_PIN_VALUE_LOW);
+
+    gpio_pad_select_gpio(config->reset_pin);
+    ret += gpio_set_direction(config->reset_pin, GPIO_MODE_OUTPUT);
+    ret += gpio_set_pull_mode(config->reset_pin, GPIO_PULLDOWN_ONLY);
+    ret += gpio_set_level(config->reset_pin, PMS_PIN_VALUE_HIGH);
+
     return ret;
 }
 
@@ -131,16 +140,21 @@ static void pmsx_data_read_task(pmsx003_config_t* config) {
     bool is_periodic = config->periodic;
 
     do {
-        gpio_set_level(config->set_pin, PMS_SET_PIN_VALUE_ON);
+        gpio_set_level(config->set_pin, PMS_PIN_VALUE_HIGH);
         vTaskDelay(PMS_WARMUP_DELAY / portTICK_RATE_MS);
         uart_flush(config->uart_port);
         vTaskDelay(PMS_WAIT_DATA_DELAY / portTICK_RATE_MS);
         
         if (config->enabled) {
-            pms_uart_read(config, data);
+            esp_err_t result_code = pms_uart_read(config, data);
+            if (result_code != ESP_OK) {
+                gpio_set_level(config->reset_pin, PMS_PIN_VALUE_LOW);
+                vTaskDelay(PMS_RESET_SENSOR_DELAY / portTICK_RATE_MS);
+                gpio_set_level(config->reset_pin, PMS_PIN_VALUE_HIGH);
+            }
         }
         
-        gpio_set_level(config->set_pin, PMS_SET_PIN_VALUE_OFF);
+        gpio_set_level(config->set_pin, PMS_PIN_VALUE_LOW);
 
         if (is_periodic) {
             vTaskSuspend(NULL);

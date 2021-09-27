@@ -16,6 +16,12 @@ config SET_GPIO
     int "SET GPIO"
     default 18
     help
-        Connect SET pin of PMS sensor to this GPIO        
+        Connect SET pin of PMS sensor to this GPIO
+
+config RESET_GPIO
+    int "RESET GPIO"
+    default 19
+    help
+        Connect RESET pin of PMS sensor to this GPIO
     			
 endmenu
