@@ -33,6 +33,7 @@ pmsx003_config_t pms_conf = {
     .periodic_sec_interval = 300, // every five minutes
     .callback = &pms_callback,
     .set_pin = CONFIG_SET_GPIO,
+    .reset_pin = CONFIG_RESET_GPIO,
     .uart_tx_pin = CONFIG_TX_GPIO,
     .uart_rx_pin = CONFIG_RX_GPIO,
 };
