@@ -48,7 +48,7 @@ static pm_data_t decode_pm_data(uint8_t *data, bool indoor);
 static void pmsx_periodic_timer_callback(void* arg);
 /*--------------------------------------------------------------------------*/
 
-esp_err_t idf_pmsx5003_init(pmsx003_config_t *config) {
+uint32_t idf_pmsx5003_init(pmsx003_config_t *config) {
 
     if (xReadTaskHandles[config->uart_port] != NULL) {
         return ESP_FAIL;
