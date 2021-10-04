@@ -1,6 +1,8 @@
 #ifndef PMSX_DATA_INCLUDE_PMSX_DATA_H_
 #define PMSX_DATA_INCLUDE_PMSX_DATA_H_
 
+#include <stdio.h>
+
 typedef struct {
 	uint16_t pm1_0;
 	uint16_t pm2_5;
