@@ -101,12 +101,12 @@ uint32_t idf_pmsx5003_init(pmsx003_config_t *config) {
 
 static esp_err_t pmsx_configure_gpio(pmsx003_config_t *config) {
     
-    gpio_pad_select_gpio(config->set_pin);
+    esp_rom_gpio_pad_select_gpio(config->set_pin);
     esp_err_t ret = gpio_set_direction(config->set_pin, GPIO_MODE_OUTPUT);
     ret += gpio_set_pull_mode(config->set_pin, GPIO_PULLDOWN_ONLY);
     ret += gpio_set_level(config->set_pin, PMS_PIN_VALUE_LOW);
 
-    gpio_pad_select_gpio(config->reset_pin);
+    esp_rom_gpio_pad_select_gpio(config->reset_pin);
     ret += gpio_set_direction(config->reset_pin, GPIO_MODE_OUTPUT);
     ret += gpio_set_pull_mode(config->reset_pin, GPIO_PULLDOWN_ONLY);
     ret += gpio_set_level(config->reset_pin, PMS_PIN_VALUE_HIGH);
@@ -141,15 +141,15 @@ static void pmsx_data_read_task(pmsx003_config_t* config) {
 
     do {
         gpio_set_level(config->set_pin, PMS_PIN_VALUE_HIGH);
-        vTaskDelay(PMS_WARMUP_DELAY / portTICK_RATE_MS);
+        vTaskDelay(PMS_WARMUP_DELAY / portTICK_PERIOD_MS);
         uart_flush(config->uart_port);
-        vTaskDelay(PMS_WAIT_DATA_DELAY / portTICK_RATE_MS);
+        vTaskDelay(PMS_WAIT_DATA_DELAY / portTICK_PERIOD_MS);
         
         if (config->enabled) {
             esp_err_t result_code = pms_uart_read(config, data);
             if (result_code != ESP_OK) {
                 gpio_set_level(config->reset_pin, PMS_PIN_VALUE_LOW);
-                vTaskDelay(PMS_RESET_SENSOR_DELAY / portTICK_RATE_MS);
+                vTaskDelay(PMS_RESET_SENSOR_DELAY / portTICK_PERIOD_MS);
                 gpio_set_level(config->reset_pin, PMS_PIN_VALUE_HIGH);
             }
         }
@@ -176,7 +176,7 @@ static esp_err_t pms_uart_read(pmsx003_config_t *config, uint8_t *data) {
         return ESP_FAIL;
     }
 
-    int data_len = uart_read_bytes(config->uart_port, data, PMS_FRAME_LEN, 100 / portTICK_RATE_MS);    
+    int data_len = uart_read_bytes(config->uart_port, data, PMS_FRAME_LEN, 100 / portTICK_PERIOD_MS);    
     if (is_pmsx_frame_valid(data, data_len)) {
         pm_data_t pm = decode_pm_data(data, config->indoor);
         pm.sensor_id = config->sensor_id;
