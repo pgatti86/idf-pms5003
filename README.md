@@ -4,6 +4,13 @@ Esp idf driver for pmsX003 sensor.
 This library can be used with multiple sensors at the same time. For each sensor you can choose between
 one shot or periodic data read.
 
+# Build
+
+This component is compatible with esp-idf v3.x.x and v5.x.x
+It was not tested non esp-idf v4.x.x
+
+Checkout the desired TAG
+
 # Configuration
 
 Use idf.py menuconfig to configure RX_PIN, TX_PIN and SET_PIN of the sensor conected to your esp board.
