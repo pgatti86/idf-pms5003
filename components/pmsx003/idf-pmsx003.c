@@ -83,7 +83,7 @@ uint32_t idf_pmsx5003_init(pmsx003_config_t *config) {
 
     if (config->periodic) {
 
-        xTaskCreate(pmsx_data_read_task, "data read task", 2048, config, 5, &(xReadTaskHandles[config->uart_port]));
+        xTaskCreate(pmsx_data_read_task, "data read task", 4096, config, 5, &(xReadTaskHandles[config->uart_port]));
          
         result = pmsx_schedule_periodic_read(config);
         if (result != ESP_OK) {
@@ -91,7 +91,7 @@ uint32_t idf_pmsx5003_init(pmsx003_config_t *config) {
             return ESP_FAIL; 
         }
     } else {
-        xTaskCreate(pmsx_data_read_task, "data read task", 2048, config, 5, NULL);
+        xTaskCreate(pmsx_data_read_task, "data read task", 4096, config, 5, NULL);
     }
     
     ESP_LOGI(TAG, "pmsx sensor initialized successfully");
