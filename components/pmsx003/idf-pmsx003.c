@@ -18,6 +18,12 @@
 
 #define PMS_WAIT_DATA_DELAY  1000
 
+#define PMS_READ_TIMEOUT_MS  5000
+
+#define PMS_FRAME_HEADER_1 0x42
+
+#define PMS_FRAME_HEADER_2 0x4d
+
 #define PMS_RESET_SENSOR_DELAY  1000
 
 static const char* TAG = "pmsx003";
@@ -167,28 +173,44 @@ static void pmsx_data_read_task(pmsx003_config_t* config) {
     vTaskDelete(NULL);
 }
 
+/*
+ * The sensor streams frames on its own (one every ~1-2.3 s), so after a flush the
+ * buffer can be empty or start in the middle of a frame. Resync on the 0x42 0x4D
+ * header and keep trying until a valid frame arrives or the timeout expires.
+ */
 static esp_err_t pms_uart_read(pmsx003_config_t *config, uint8_t *data) {
-	
-    size_t available_data;
-    uart_get_buffered_data_len(config->uart_port, &available_data);
-    if (available_data < PMS_FRAME_LEN) {
-        ESP_LOGW(TAG, "not enought data available");
-        return ESP_FAIL;
-    }
 
-    int data_len = uart_read_bytes(config->uart_port, data, PMS_FRAME_LEN, 100 / portTICK_PERIOD_MS);    
-    if (is_pmsx_frame_valid(data, data_len)) {
-        pm_data_t pm = decode_pm_data(data, config->indoor);
-        pm.sensor_id = config->sensor_id;
-        if (config->callback) {
-            config->callback(&pm);
+    const TickType_t byte_timeout = 100 / portTICK_PERIOD_MS;
+    const int64_t deadline = esp_timer_get_time() + (int64_t) PMS_READ_TIMEOUT_MS * 1000;
+
+    while (esp_timer_get_time() < deadline) {
+        uint8_t byte;
+
+        if (uart_read_bytes(config->uart_port, &byte, 1, byte_timeout) != 1 || byte != PMS_FRAME_HEADER_1) {
+            continue;
         }
-    } else {
-        ESP_LOGW(TAG, "checksum mismatch");
-        return ESP_FAIL;
+        if (uart_read_bytes(config->uart_port, &byte, 1, byte_timeout) != 1 || byte != PMS_FRAME_HEADER_2) {
+            continue;
+        }
+
+        data[0] = PMS_FRAME_HEADER_1;
+        data[1] = PMS_FRAME_HEADER_2;
+
+        int body_len = uart_read_bytes(config->uart_port, data + 2, PMS_FRAME_LEN - 2, byte_timeout);
+        if (body_len == PMS_FRAME_LEN - 2 && is_pmsx_frame_valid(data, PMS_FRAME_LEN)) {
+            pm_data_t pm = decode_pm_data(data, config->indoor);
+            pm.sensor_id = config->sensor_id;
+            if (config->callback) {
+                config->callback(&pm);
+            }
+            return ESP_OK;
+        }
+
+        ESP_LOGW(TAG, "invalid frame, waiting for the next one");
     }
 
-	return ESP_OK;
+    ESP_LOGW(TAG, "no valid frame received within %d ms", PMS_READ_TIMEOUT_MS);
+    return ESP_FAIL;
 }
 
 static bool is_pmsx_frame_valid(uint8_t *data, int data_len) {
